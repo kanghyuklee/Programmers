@@ -96,7 +96,7 @@
 
 - 개선
 
-    ```
+    ```sql
     SELECT 
     pr.PRODUCT_CODE,
     COALESCE(SUM(os.sales_amount), 0) * pr.price AS SALES
