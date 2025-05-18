@@ -67,6 +67,7 @@
 | C3000002 | 126000 |
 | A1000011 | 90000 |
 | A1000045 | 16000 |
+
 - 답
     
     ```sql
@@ -76,4 +77,35 @@
     right join PRODUCT pr on os.product_id = pr.product_id
     group by os.product_id
     order by SALES desc, pr.PRODUCT_CODE asc
+    ```
+
+- 해석
+
+⚠️ 성능적으로 아쉬운 부분들:
+1. DISTINCT + GROUP BY 조합
+→ GROUP BY가 이미 중복 제거 역할을 하니까 DISTINCT는 불필요해. 오히려 오버헤드만 줘.
+
+2. GROUP BY os.product_id인데 SELECT에는 pr.PRODUCT_CODE만 있음
+→ GROUP BY 키와 SELECT 컬럼이 정확히 매칭되지 않으면 의도치 않은 결과가 나오거나 성능이 떨어질 수 있어.
+
+3. 계산(sum * price)이 GROUP BY 안에서 일어남
+→ price는 PRODUCT 테이블의 고정값일 가능성이 크니까, 그걸 sum 밖에서 곱하는 게 낫지.
+
+4. RIGHT JOIN?
+→ PRODUCT가 중심 테이블이면 LEFT JOIN이 더 직관적이고 최적화하기 쉬워.
+
+- 개선
+
+    ```
+    SELECT 
+    pr.PRODUCT_CODE,
+    COALESCE(SUM(os.sales_amount), 0) * pr.price AS SALES
+    FROM 
+        PRODUCT pr
+    LEFT JOIN 
+        OFFLINE_SALE os ON os.product_id = pr.product_id
+    GROUP BY 
+        pr.product_id, pr.PRODUCT_CODE, pr.price
+    ORDER BY 
+        SALES DESC, pr.PRODUCT_CODE ASC;
     ```
