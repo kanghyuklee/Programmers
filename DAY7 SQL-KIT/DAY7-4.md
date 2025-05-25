@@ -82,3 +82,78 @@
     GROUP BY YEAR, MONTH, GENDER
     ORDER BY YEAR, MONTH, GENDER
     ```
+    
+
+---
+
+## ✅ 쿼리 기능 설명
+
+```sql
+SELECT
+  **DATE_FORMAT(SALES_DATE, "%Y") AS YEAR,
+  MONTH(SALES_DATE) AS MONTH,**
+  UI.GENDER,
+  COUNT(DISTINCT OS.USER_ID) AS USERS
+FROM USER_INFO UI
+JOIN ONLINE_SALE OS ON UI.USER_ID = OS.USER_ID
+WHERE GENDER IS NOT NULL
+GROUP BY YEAR, MONTH, GENDER
+ORDER BY YEAR, MONTH, GENDER
+```
+
+| 항목 | 설명 |
+| --- | --- |
+| `JOIN` | 유저별 성별 정보 + 매출 데이터를 연결 |
+| `WHERE GENDER IS NOT NULL` | 성별이 존재하는 유저만 필터링 |
+| `GROUP BY` | 연도, 월, 성별별로 집계 |
+| `COUNT(DISTINCT OS.USER_ID)` | 중복된 유저 구매 제거해서 **순 유저 수 카운트** |
+
+---
+
+## 💡 성능 + 구조 개선 포인트
+
+### ✅ 1. `DATE_FORMAT`과 `MONTH()`는 인덱스를 무력화할 수 있음
+
+> SALES_DATE에 인덱스가 있더라도 DATE_FORMAT()이나 MONTH()를 쓰면
+> 
+> 
+> **MySQL 인덱스 범위 스캔이 안 될 수 있어!**
+> 
+
+### 🔧 개선 예시:
+
+```sql
+SELECT
+  **YEAR(OS.SALES_DATE) AS YEAR,
+  MONTH(OS.SALES_DATE) AS MONTH,**
+  UI.GENDER,
+  COUNT(DISTINCT OS.USER_ID) AS USERS
+FROM USER_INFO UI
+JOIN ONLINE_SALE OS ON UI.USER_ID = OS.USER_ID
+WHERE UI.GENDER IS NOT NULL
+GROUP BY YEAR, MONTH, UI.GENDER
+ORDER BY YEAR, MONTH, UI.GENDER;
+```
+
+👉 `DATE_FORMAT()` 대신 `YEAR()`와 `MONTH()`로 변경해서 **인덱스 우회 최소화**
+
+---
+
+### ✅ 2. alias 쓰는 위치 주의
+
+`GROUP BY YEAR, MONTH, GENDER` ← 이건 기능은 OK지만,
+
+MySQL에서는 **컬럼 번호, alias, 원본 컬럼명**을 섞어 쓰면 모호해질 수 있음
+
+→ `GROUP BY`에는 **명확히 `YEAR(OS.SALES_DATE)` 같은 원본 기준** 쓰는 게 더 안전함
+
+---
+
+### ✅ 3. 인덱스 확인하면 좋을 것들
+
+| 테이블 | 추천 인덱스 |
+| --- | --- |
+| `USER_INFO` | `USER_ID`, `GENDER` 복합 인덱스 |
+| `ONLINE_SALE` | `USER_ID`, `SALES_DATE` 복합 인덱스 |
+
+→ 이렇게 하면 `JOIN`과 `WHERE`, `GROUP BY` 성능 향상 가능!
